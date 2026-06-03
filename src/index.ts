@@ -11,30 +11,17 @@ import { buscarSugestoes } from "./sugestoes.js";
 const app = express();
 
 /**
- * CORS totalmente liberado
+ * CORS LIBERADO
  */
-app.use(
-  cors({
-    origin: "*",
-    methods: ["GET", "POST", "OPTIONS"],
-    allowedHeaders: [
-      "Content-Type",
-      "Authorization",
-      "Idempotency-Key",
-    ],
-    exposedHeaders: ["Idempotent-Replay"],
-  })
-);
+app.use(cors());
 
 /**
- * Responde preflight OPTIONS
+ * JSON
  */
-app.options("*", cors());
-
 app.use(express.json());
 
 /**
- * Health check
+ * HEALTH
  */
 app.get("/health", (_req, res) => {
   res.json({
@@ -44,7 +31,7 @@ app.get("/health", (_req, res) => {
 });
 
 /**
- * GET /compras
+ * LISTAR COMPRAS
  */
 app.get("/compras", async (_req: Request, res: Response) => {
   try {
@@ -54,17 +41,16 @@ app.get("/compras", async (_req: Request, res: Response) => {
 
     res.json(r.rows);
   } catch (err) {
-    console.error(err);
+    console.error("ERRO GET /compras:", err);
 
     res.status(500).json({
-      erro: "erro ao buscar compras",
+      erro: "erro interno",
     });
   }
 });
 
 /**
- * POST /compras
- * protegido por idempotência
+ * CRIAR COMPRA
  */
 app.post(
   "/compras",
@@ -86,9 +72,6 @@ app.post(
         return;
       }
 
-      /**
-       * atraso artificial
-       */
       await new Promise((r) => setTimeout(r, 3000));
 
       const r = await pool.query(
@@ -106,9 +89,6 @@ app.post(
 
       const compra = r.rows[0];
 
-      /**
-       * Sugestão best-effort
-       */
       const sugestao = await buscarSugestoes(produto);
 
       res.status(201).json({
@@ -116,17 +96,17 @@ app.post(
         sugestao,
       });
     } catch (err) {
-      console.error(err);
+      console.error("ERRO POST /compras:", err);
 
       res.status(500).json({
-        erro: "erro ao criar compra",
+        erro: "erro interno",
       });
     }
   }
 );
 
 /**
- * Handler global de erros
+ * ERRO GLOBAL
  */
 app.use(
   (
@@ -135,10 +115,10 @@ app.use(
     res: Response,
     _next: NextFunction
   ) => {
-    console.error("Erro global:", err);
+    console.error("ERRO GLOBAL:", err);
 
     res.status(500).json({
-      erro: "erro interno do servidor",
+      erro: "erro interno servidor",
     });
   }
 );
@@ -146,16 +126,20 @@ app.use(
 const PORT = Number(process.env.PORT ?? 4001);
 
 /**
- * Inicialização
+ * START
  */
 waitForDb()
-  .then(() => migrate())
-  .then(() => {
+  .then(async () => {
+    console.log("Banco conectado");
+
+    await migrate();
+
     app.listen(PORT, () => {
       console.log(`[compras] ouvindo na porta ${PORT}`);
     });
   })
   .catch((e) => {
-    console.error("Erro ao iniciar aplicação:", e);
+    console.error("ERRO AO INICIAR:", e);
+
     process.exit(1);
   });
